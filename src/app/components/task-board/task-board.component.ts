@@ -5,10 +5,10 @@
 import {
   Component,
   OnInit,
-  OnDestroy,
   inject,
   signal,
   computed,
+    DestroyRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -20,6 +20,7 @@ import { Task, TaskStatus, TaskPriority, TaskFormData } from '../../models/task.
 import { TaskCardComponent } from '../task-card/task-card.component';
 import { TaskFormComponent } from '../task-form/task-form.component';
 import { StatsPanelComponent } from '../stats-panel/stats-panel.component';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-task-board',
@@ -383,9 +384,20 @@ import { StatsPanelComponent } from '../stats-panel/stats-panel.component';
     }
   `],
 })
-export class TaskBoardComponent implements OnInit, OnDestroy {
+export class TaskBoardComponent {
+    // inject() at field level
+    private _destroyRef = inject(DestroyRef);
   readonly taskService = inject(TaskService);
+// subscriptions declared as fields — no ngOnInit needed
+    private _notificationSub = this.taskService.notification$
+        .pipe(takeUntilDestroyed(this._destroyRef))
+        .subscribe((msg) => this.notification.set(msg));
 
+    private _eventsSub = this.taskService.taskEvents$
+        .pipe(takeUntilDestroyed(this._destroyRef))
+        .subscribe(({ type, taskId }) =>
+            console.log(`[TaskBoard] Event: ${type} → ${taskId}`)
+        );
   // ── Local UI signals ───────────────────────────────────────────────────────
   showForm = signal(false);
   editingTask = signal<Task | null>(null);
@@ -434,28 +446,22 @@ export class TaskBoardComponent implements OnInit, OnDestroy {
   ];
 
   // ── Subscriptions (demonstrate proper cleanup) ─────────────────────────────
-  private _subs = new Subscription();
+//    private _destroyRef = inject(DestroyRef);
 
-  ngOnInit(): void {
-    // Subscribe to notification$ observable from service
-    this._subs.add(
-      this.taskService.notification$.subscribe((msg) => {
-        this.notification.set(msg);
-      })
-    );
+// AFTER
+    ngOnInit(): void {
+        this.taskService.notification$
+            .pipe(takeUntilDestroyed(this._destroyRef))
+            .subscribe((msg) => {
+                this.notification.set(msg);
+            });
 
-    // Subscribe to task events (could be used for analytics, logging, etc.)
-    this._subs.add(
-      this.taskService.taskEvents$.subscribe(({ type, taskId }) => {
-        console.log(`[TaskBoard] Event: ${type} → ${taskId}`);
-      })
-    );
-  }
-
-  ngOnDestroy(): void {
-    // Unsubscribe all at once — interview classic!
-    this._subs.unsubscribe();
-  }
+        this.taskService.taskEvents$
+            .pipe(takeUntilDestroyed(this._destroyRef))
+            .subscribe(({ type, taskId }) => {
+                console.log(`[TaskBoard] Event: ${type} → ${taskId}`);
+            });
+    }
 
   // ── Event Handlers ─────────────────────────────────────────────────────────
   openForm(task?: Task): void {
