@@ -24,7 +24,7 @@ import {
 import { Task, TaskFormData, TaskPriority } from '../../models/task.model';
 
 // ── Custom Validator ──────────────────────────────────────────────────────────
-function noOnlySpaces(control: AbstractControl): ValidationErrors | null {
+export function noOnlySpaces(control: AbstractControl): ValidationErrors | null {
   if (control.value && control.value.trim().length === 0) {
     return { noOnlySpaces: true };
   }
